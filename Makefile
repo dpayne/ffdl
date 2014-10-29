@@ -10,25 +10,25 @@ DIR_INCLUDE= $(DIR)/include
 OBJECTS= $(DIR)/src/ffdl.o
 LINKED_LIBS=curl
 
-CPP=g++
+CC=gcc
 
 # Folder to install build artifacts to
 PREFIX=/usr/local
 
-CPPFLAGS=-O3 -fno-omit-frame-pointer -ffast-math -march=native -flto -Wall -Werror -Wl,-Bdynamic -lcurl
+CFLAGS=-O3 -fno-omit-frame-pointer -ffast-math -march=native -flto -Wall -Werror -Wl,-Bdynamic -lcurl
 
 .PHONY: all
 all: $(LIB_NAME) $(EXECUTABLE_NAME)
 
-$(DIR_SRC)/%.o: %.cpp
-	$(CPP) -L./ -Wl,-Bstatic -l$(NAME) $(CPPFLAGS) -I$(DIR_INCLUDE) -I$(DIR_SRC) $(LDFLAGS) -c $< -o $@
+$(DIR_SRC)/%.o: %.c
+	$(CC) -L./ -Wl,-Bstatic -l$(NAME) $(CFLAGS) -I$(DIR_INCLUDE) -I$(DIR_SRC) $(LDFLAGS) -c $< -o $@
 
 $(LIB_NAME): $(OBJECTS)
-	$(CPP) -shared $(CPPFLAGS) -I$(DIR_INCLUDE) -I$(DIR_SRC) $(LDFLAGS) src/ffdl.cpp -o $(LIB_NAME);
+	$(CC) -shared $(CCFLAGS) -I$(DIR_INCLUDE) -I$(DIR_SRC) $(LDFLAGS) src/ffdl.c -o $(LIB_NAME);
 	$(AR) -r $(STATIC_LIB_NAME) $(OBJECTS)
 
 $(EXECUTABLE_NAME): $(LIB_NAME)
-	$(CPP) -L./ -Wl,-Bstatic -l$(NAME) $(CPPFLAGS) -I$(DIR_INCLUDE) -I$(DIR_SRC) $(LDFLAGS) main.cpp -o $(EXECUTABLE_NAME);
+	$(CC) -L./ -Wl,-Bstatic -l$(NAME) $(CFLAGS) -I$(DIR_INCLUDE) -I$(DIR_SRC) $(LDFLAGS) main.c -o $(EXECUTABLE_NAME);
 
 .PHONY: install
 install: $(EXECUTABLE_NAME) $(LIB_NAME)
@@ -38,4 +38,4 @@ install: $(EXECUTABLE_NAME) $(LIB_NAME)
 
 .PHONY: clean
 clean:
-	rm -f $(EXECUTABLE_NAME) $(LIB_NAME) $(STATIC_LIB_NAME)
+	rm -f $(EXECUTABLE_NAME) $(LIB_NAME) $(STATIC_LIB_NAME) $(OBJECTS)
