@@ -15,8 +15,16 @@ CC=gcc
 # Folder to install build artifacts to
 PREFIX=/usr/local
 
-#CFLAGS= -fPIC -I$(DIR_INCLUDE) -I$(DIR_SRC) -O3 -fno-omit-frame-pointer -ffast-math -march=native -flto -Wall -Werror -Wl,-Bdynamic -lm -lcurl
-CFLAGS= -fPIC -I$(DIR_INCLUDE) -I$(DIR_SRC) -g3 -ggdb -Wall -Werror -Wl,-Bdynamic -lm -lcurl
+OS= $(shell uname)
+CFLAGS= -fPIC -I$(DIR_INCLUDE) -I$(DIR_SRC) -O3 -fno-omit-frame-pointer -ffast-math -march=native -flto -Wall -Werror
+
+ifeq ($(OS),Darwin)
+	STATIC_LDFLAGS=-L./ -l$(NAME)
+	LDFLAGS= -fPIC -lm -lcurl
+else
+	STATIC_LDFLAGS=-L./ -Wl,-Bstatic -l$(NAME)
+	LDFLAGS= -fPIC -Wl,-Bdynamic -lm -lcurl
+endif
 
 .PHONY: all
 all: $(OBJECTS) $(LIB_NAME) $(EXECUTABLE_NAME)
@@ -29,7 +37,7 @@ $(LIB_NAME): $(OBJECTS)
 	$(AR) -r $(STATIC_LIB_NAME) $(OBJECTS)
 
 $(EXECUTABLE_NAME): $(LIB_NAME)
-	$(CC) -L./ -Wl,-Bstatic -l$(NAME) $(CFLAGS) -I$(DIR_INCLUDE) -I$(DIR_SRC) $(LDFLAGS) main.c -o $(EXECUTABLE_NAME) $(OBJECTS);
+	$(CC) $(STATIC_LDFLAGS) $(CFLAGS) -I$(DIR_INCLUDE) -I$(DIR_SRC) $(LDFLAGS) main.c -o $(EXECUTABLE_NAME) $(OBJECTS);
 
 .PHONY: install
 install: $(EXECUTABLE_NAME) $(LIB_NAME)
