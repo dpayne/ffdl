@@ -79,6 +79,9 @@ int setup_curl_handlers( CURLM *curlMulti, char * url, char * filename, unsigned
     {
         //setup range in bytes
         snprintf( range, rangeBufferSize, "%llu-%llu", rangeStart, rangeEnd );
+#ifdef DEBUG
+        fprintf( stdout, "%s\n", range );
+#endif
 
         rangeStart += chunkSize + 1;
         rangeEnd = rangeStart + chunkSize;
@@ -254,8 +257,14 @@ void merge_chunks( unsigned long long numberOfChunks, unsigned long long chunkSi
 
 int ffdl_download_to_file_with_options( char * url, char * filename, unsigned long long chunkSize, long maxConnections, long timeout, long rateLimit )
 {
+    //initialize curl
+    curl_global_init (CURL_GLOBAL_ALL);
     int result = TRUE;
     double filesize = ffdl_get_file_size_bytes( url );
+
+#ifdef DEBUG
+    fprintf( stdout, "filesize: %f\n", filesize );
+#endif
 
     if ( chunkSize == 0 )
     {
@@ -277,6 +286,10 @@ int ffdl_download_to_file_with_options( char * url, char * filename, unsigned lo
         rateLimit = 0;
     }
 
+#ifdef DEBUG
+    fprintf( stdout, "Options: chunksize: %llu\tmaxConnections: %ld\ttimeout: %ld\trateLimit: %ld\n", chunkSize, maxConnections, timeout, rateLimit );
+#endif
+
     unsigned long long numberOfChunks = ceil( filesize / (double)( chunkSize ) );
 
     CURL *curlHandles[numberOfChunks];
@@ -293,6 +306,7 @@ int ffdl_download_to_file_with_options( char * url, char * filename, unsigned lo
 
     merge_chunks( numberOfChunks, chunkSize, filename );
 
+    curl_global_cleanup();
     return result;
 }
 

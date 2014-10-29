@@ -16,7 +16,12 @@ CC=gcc
 PREFIX=/usr/local
 
 OS= $(shell uname)
+
 CFLAGS= -fPIC -I$(DIR_INCLUDE) -I$(DIR_SRC) -O3 -fno-omit-frame-pointer -ffast-math -march=native -flto -Wall -Werror
+
+ifdef DEBUG
+	CFLAGS= -D DEBUG -fPIC -I$(DIR_INCLUDE) -I$(DIR_SRC) -flto -Wall -Werror
+endif
 
 ifeq ($(OS),Darwin)
 	STATIC_LDFLAGS=-L./ -l$(NAME)
