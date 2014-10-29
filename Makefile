@@ -15,20 +15,21 @@ CC=gcc
 # Folder to install build artifacts to
 PREFIX=/usr/local
 
-CFLAGS=-O3 -fno-omit-frame-pointer -ffast-math -march=native -flto -Wall -Werror -Wl,-Bdynamic -lcurl
+#CFLAGS= -fPIC -I$(DIR_INCLUDE) -I$(DIR_SRC) -O3 -fno-omit-frame-pointer -ffast-math -march=native -flto -Wall -Werror -Wl,-Bdynamic -lm -lcurl
+CFLAGS= -fPIC -I$(DIR_INCLUDE) -I$(DIR_SRC) -g3 -ggdb -Wall -Werror -Wl,-Bdynamic -lm -lcurl
 
 .PHONY: all
-all: $(LIB_NAME) $(EXECUTABLE_NAME)
+all: $(OBJECTS) $(LIB_NAME) $(EXECUTABLE_NAME)
 
 $(DIR_SRC)/%.o: %.c
-	$(CC) -L./ -Wl,-Bstatic -l$(NAME) $(CFLAGS) -I$(DIR_INCLUDE) -I$(DIR_SRC) $(LDFLAGS) -c $< -o $@
+	$(CC) $(LDFLAGS) $(CFLAGS) -c $< -o $@
 
 $(LIB_NAME): $(OBJECTS)
-	$(CC) -shared $(CCFLAGS) -I$(DIR_INCLUDE) -I$(DIR_SRC) $(LDFLAGS) src/ffdl.c -o $(LIB_NAME);
+	$(CC) -shared $(CFLAGS) -I$(DIR_INCLUDE) -I$(DIR_SRC) $(LDFLAGS) src/ffdl.c -o $(LIB_NAME);
 	$(AR) -r $(STATIC_LIB_NAME) $(OBJECTS)
 
 $(EXECUTABLE_NAME): $(LIB_NAME)
-	$(CC) -L./ -Wl,-Bstatic -l$(NAME) $(CFLAGS) -I$(DIR_INCLUDE) -I$(DIR_SRC) $(LDFLAGS) main.c -o $(EXECUTABLE_NAME);
+	$(CC) -L./ -Wl,-Bstatic -l$(NAME) $(CFLAGS) -I$(DIR_INCLUDE) -I$(DIR_SRC) $(LDFLAGS) main.c -o $(EXECUTABLE_NAME) $(OBJECTS);
 
 .PHONY: install
 install: $(EXECUTABLE_NAME) $(LIB_NAME)
