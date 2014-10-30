@@ -1,0 +1,4 @@
+ffdl
+libffdl.a
+libffdl.dylib.0.1
+src/*.o
