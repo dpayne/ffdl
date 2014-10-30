@@ -67,6 +67,7 @@ size_t ffdl_get_file_size_bytes( char * url )
 int setup_curl_handlers( CURLM *curlMulti, char * url, char * filename, unsigned long long numberOfChunks, unsigned long long chunkSize, long timeout, long rateLimit, CURL ** curlHandles, FILE ** fileDescriptors )
 {
     CURL * curl = NULL;
+    printf( "filename: %s", filename );
     size_t chunkFilenameSize = strnlen( filename, 2 << 16 ) + 15UL;
     char chunkFilename[chunkFilenameSize];
     int status = TRUE;
