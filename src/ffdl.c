@@ -16,8 +16,9 @@
 #define TRUE 1
 #define FALSE 0
 
-unsigned long long c_defaultChunkSize = 2 << 21; //default to 4MB chunks
+unsigned long long c_defaultChunkSize = 2 << 23; //default to 16MB chunks
 long c_defaultMaxConnections = 32; //default number of simultaneous connections
+long c_defaultTimeoutSecs = 600; //default timeout for a connection, 5 mins
 
 size_t ffdl_write_data_to_file( void *ptr, size_t size, size_t nmemb, FILE *stream );
 
@@ -67,7 +68,6 @@ size_t ffdl_get_file_size_bytes( char * url )
 int setup_curl_handlers( CURLM *curlMulti, char * url, char * filename, unsigned long long numberOfChunks, unsigned long long chunkSize, long timeout, long rateLimit, CURL ** curlHandles, FILE ** fileDescriptors )
 {
     CURL * curl = NULL;
-    printf( "filename: %s", filename );
     size_t chunkFilenameSize = strnlen( filename, 2 << 16 ) + 15UL;
     char chunkFilename[chunkFilenameSize];
     int status = TRUE;
@@ -226,7 +226,7 @@ void merge_chunks( unsigned long long numberOfChunks, unsigned long long chunkSi
 
     size_t chunkFilenameSize = strnlen( filename, 2 << 16 ) + 15UL;
     char chunkFilename[chunkFilenameSize];
-    char buf[chunkSize];
+    char *buf = (char *) malloc( chunkSize + 1);
     size_t n = 0;
 
     unsigned long long i;
@@ -254,6 +254,7 @@ void merge_chunks( unsigned long long numberOfChunks, unsigned long long chunkSi
     }
 
     fclose( finalFile );
+    free( buf );
 }
 
 int ffdl_download_to_file_with_options( char * url, char * filename, unsigned long long chunkSize, long maxConnections, long timeout, long rateLimit )
@@ -279,7 +280,7 @@ int ffdl_download_to_file_with_options( char * url, char * filename, unsigned lo
 
     if ( timeout < 0 )
     {
-        timeout = 0;
+        timeout = c_defaultTimeoutSecs;
     }
 
     if ( rateLimit < 0 )
