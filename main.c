@@ -37,7 +37,7 @@ int main( int argc, char * argv[] )
         return 1;
     }
 
-    fprintf( stdout, "Url: %s\tfilename:%s\n", url, filename );
+    printf( "Url: %s\tfilename:%s\n", url, filename );
 
     if ( ffdl_download_to_file( url, filename ) == 1 )
     {
