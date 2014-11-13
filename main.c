@@ -5,12 +5,12 @@
 
 struct arguments
 {
-        char * url;
-        char * file;
-        long max_num_conns;
-        unsigned long long chunksize_bytes;
-        long timeout_secs;
-        long rate_limit;
+    char * url;
+    char * file;
+    long maxNumConns;
+    unsigned long long chunksizeBytes;
+    long timeoutSecs;
+    long rateLimit;
 };
 
 //
@@ -51,30 +51,30 @@ static error_t parse_opt( int key, char *arg, struct argp_state *state )
 {
     struct arguments *arguments = state->input;
 
-    long max_num_conns;
-    long timeout_secs;
-    long rate_limit;
-    unsigned long long chunksize_bytes;
+    long maxNumConns;
+    long timeoutSecs;
+    long rateLimit;
+    unsigned long long chunksizeBytes;
     switch ( key )
     {
         case 'f':
             arguments->file = arg;
             break;
         case 'm':
-            sscanf( arg, "%ld", &max_num_conns );
-            arguments->max_num_conns = max_num_conns;
+            sscanf( arg, "%ld", &maxNumConns );
+            arguments->maxNumConns = maxNumConns;
             break;
         case 's':
-            sscanf( arg, "%llu", &chunksize_bytes );
-            arguments->chunksize_bytes = chunksize_bytes;
+            sscanf( arg, "%llu", &chunksizeBytes );
+            arguments->chunksizeBytes = chunksizeBytes;
             break;
         case 't':
-            sscanf( arg, "%ld", &timeout_secs );
-            arguments->timeout_secs = timeout_secs;
+            sscanf( arg, "%ld", &timeoutSecs );
+            arguments->timeoutSecs = timeoutSecs;
             break;
         case 'r':
-            sscanf( arg, "%ld", &rate_limit );
-            arguments->rate_limit = rate_limit;
+            sscanf( arg, "%ld", &rateLimit );
+            arguments->rateLimit = rateLimit;
             break;
         case ARGP_KEY_ARG:
             if ( state->arg_num >= 1 )
@@ -111,7 +111,7 @@ int main( int argc, char * argv[] )
 
     printf( "Downloading \"%s\" to \"%s\"\n", arguments.url, arguments.file );
 
-    if ( ffdl_download_to_file_with_options( arguments.url, arguments.file, arguments.chunksize_bytes, arguments.max_num_conns, arguments.timeout_secs, arguments.rate_limit ) == 1 )
+    if ( ffdl_download_to_file_with_options( arguments.url, arguments.file, arguments.chunksizeBytes, arguments.maxNumConns, arguments.timeoutSecs, arguments.rateLimit ) == 1 )
     {
         //success!
         return 0;

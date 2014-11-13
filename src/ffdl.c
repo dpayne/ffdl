@@ -294,8 +294,8 @@ int ffdl_download_to_file_with_options( char * url, char * filename, unsigned lo
 
     unsigned long long numberOfChunks = ceil( filesize / (double)( chunkSize ) );
 
-    CURL *curlHandles[numberOfChunks];
-    FILE *fileDescriptors[numberOfChunks];
+    CURL ** curlHandles = (CURL **) malloc( numberOfChunks * sizeof( CURL * ) );
+    FILE ** fileDescriptors = (FILE **) malloc( numberOfChunks * sizeof( FILE * ) );
     CURLM * curlMulti = curl_multi_init();
 
     curl_multi_setopt( curlMulti, CURLMOPT_MAX_TOTAL_CONNECTIONS, maxConnections );
@@ -309,6 +309,8 @@ int ffdl_download_to_file_with_options( char * url, char * filename, unsigned lo
     merge_chunks( numberOfChunks, chunkSize, filename );
 
     curl_global_cleanup();
+    free( curlHandles );
+    free( fileDescriptors );
     return result;
 }
 
