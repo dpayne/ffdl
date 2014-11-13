@@ -1,45 +1,117 @@
-#include "ffdl.h"
-#include "stdio.h"
-#include "string.h"
+#include <ffdl.h>
+#include <stdio.h>
+#include <argp.h>
+#include <string.h>
 
-int main( int argc, char * argv[] )
+struct arguments
 {
-    char *filename = NULL;
-    char *url = NULL;
+        char * url;
+        char * file;
+        long max_num_conns;
+        unsigned long long chunksize_bytes;
+        long timeout_secs;
+        long rate_limit;
+};
 
-    if ( argc == 3 )
-    {
-        url = argv[1];
-        filename = argv[2];
-    }
-    //try to guess filename from url
-    else if ( argc == 2 )
-    {
-        url = argv[1];
-        filename = strrchr( url, '/' );
+//
+// ARGP options
+//
+static struct argp_option options[] = { { "file", 'f', "FILE", 0, "Local file to download to." }, { "max-connections", 'm', "NUM_CONNECTIONS", 0, "Maximum number of simultaneous connections when downloading." }, { "chunk-size", 's', "SIZE", 0, "Size in bytes of the chunks of data." }, { "timeout", 't', "TIMEOUT", 0, "Connection timeout in seconds." }, { "rate-limit", 'r', "LIMIT", 0, "Download rate limit in bytes per second." }, { 0 } };
 
-        if ( filename == NULL )
-        {
-            filename = url;
-        }
-        else
-        {
-            ++filename;
-            if ( filename == '\0' )
-            {
-                filename = url;
-            }
-        }
+static char args_doc[] = "URL";
+
+static char doc[] = "ffdl -- Fast file downloader. Downloads a file from a given url using multiple HTTP connections in parallel";
+
+// Gets the filename to download to from a url.
+// Returns a pointer to the start of the filename. The returned char * will always
+//   point to a character in the parameter url.
+static char * get_filename_from_url( char *url )
+{
+    char * filename = strrchr( url, '/' );
+
+    //if there is no path, just use the full url
+    if ( filename == NULL )
+    {
+        filename = url;
     }
     else
     {
-        fprintf( stderr, "error: wrong number of arguments\nUsage ffdl http://someurl.com/file /tmp/some_local_file\n" );
-        return 1;
+        ++filename;
+        if ( filename == '\0' )
+        {
+            filename = url;
+        }
     }
 
-    printf( "url: %s\tfilename:%s\n", url, filename );
+    return filename;
+}
 
-    if ( ffdl_download_to_file( url, filename ) == 1 )
+// Parser for argp
+static error_t parse_opt( int key, char *arg, struct argp_state *state )
+{
+    struct arguments *arguments = state->input;
+
+    long max_num_conns;
+    long timeout_secs;
+    long rate_limit;
+    unsigned long long chunksize_bytes;
+    switch ( key )
+    {
+        case 'f':
+            arguments->file = arg;
+            break;
+        case 'm':
+            sscanf( arg, "%ld", &max_num_conns );
+            arguments->max_num_conns = max_num_conns;
+            break;
+        case 's':
+            sscanf( arg, "%llu", &chunksize_bytes );
+            arguments->chunksize_bytes = chunksize_bytes;
+            break;
+        case 't':
+            sscanf( arg, "%ld", &timeout_secs );
+            arguments->timeout_secs = timeout_secs;
+            break;
+        case 'r':
+            sscanf( arg, "%ld", &rate_limit );
+            arguments->rate_limit = rate_limit;
+            break;
+        case ARGP_KEY_ARG:
+            if ( state->arg_num >= 1 )
+            {
+                argp_usage( state );
+            }
+            arguments->url = arg;
+            break;
+        case ARGP_KEY_END:
+            if ( state->arg_num < 1 )
+            {
+                argp_usage( state );
+            }
+            break;
+        default:
+            return ARGP_ERR_UNKNOWN;
+    }
+    return 0;
+}
+
+static struct argp argp = { options, parse_opt, args_doc, doc };
+
+int main( int argc, char * argv[] )
+{
+    struct arguments arguments;
+    memset( &arguments, 0, sizeof( arguments ) );
+
+    argp_parse( &argp, argc, argv, 0, 0, &arguments );
+
+    if ( arguments.file == '\0' )
+    {
+        arguments.file = get_filename_from_url( arguments.url );
+    }
+
+    printf( "Downloading \"%s\" to \"%s\"\n", arguments.url, arguments.file );
+
+    if ( ffdl_download_to_file_with_options( arguments.url, arguments.file, arguments.chunksize_bytes, arguments.max_num_conns, arguments.timeout_secs, arguments.rate_limit ) == 1 )
     {
         //success!
         return 0;
