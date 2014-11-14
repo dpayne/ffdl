@@ -16,9 +16,12 @@
 #define TRUE 1
 #define FALSE 0
 
-unsigned long long c_defaultChunkSize = 2 << 23; //default to 16MB chunks
-long c_defaultMaxConnections = 32; //default number of simultaneous connections
+#define min(a, b) (((a) < (b)) ? (a) : (b))
+
+unsigned long long c_defaultChunkSize = 2 << 19; //default to 512KB chunks
+long c_defaultMaxConnections = 256; //default number of simultaneous connections
 long c_defaultTimeoutSecs = 600; //default timeout for a connection, 5 mins
+long c_partitionSize = 1000; //Size of each downloading partition
 
 size_t ffdl_write_data_to_file( void *ptr, size_t size, size_t nmemb, FILE *stream );
 
@@ -65,14 +68,14 @@ size_t ffdl_get_file_size_bytes( char * url )
     return filesize;
 }
 
-int setup_curl_handlers( CURLM *curlMulti, char * url, char * filename, unsigned long long numberOfChunks, unsigned long long chunkSize, long timeout, long rateLimit, CURL ** curlHandles, FILE ** fileDescriptors )
+int setup_curl_handlers( CURLM *curlMulti, char * url, char * filename, unsigned long long currentStartOfPartition, unsigned long long numberOfChunks, unsigned long long chunkSize, long timeout, long rateLimit, CURL ** curlHandles, FILE ** fileDescriptors )
 {
     CURL * curl = NULL;
     size_t chunkFilenameSize = strnlen( filename, 2 << 16 ) + 15UL;
     char chunkFilename[chunkFilenameSize];
     int status = TRUE;
-    unsigned long long rangeStart = 0;
-    unsigned long long rangeEnd = chunkSize;
+    unsigned long long rangeStart = currentStartOfPartition;
+    unsigned long long rangeEnd = chunkSize + rangeStart;
     size_t rangeBufferSize = 4096;
     char range[rangeBufferSize];
     unsigned long long i;
@@ -91,7 +94,7 @@ int setup_curl_handlers( CURLM *curlMulti, char * url, char * filename, unsigned
         curl = curlHandles[i];
         if ( curl )
         {
-            snprintf( chunkFilename, chunkFilenameSize, "%s.pt%llu", filename, i );
+            snprintf( chunkFilename, chunkFilenameSize, "%s.pt%llu", filename, i  + currentStartOfPartition );
 
             fileDescriptors[i] = fopen( chunkFilename, "wb" );
 
@@ -184,7 +187,7 @@ int perform_multi_curl_download( CURLM *curlMulti, unsigned long long numberOfCh
         switch ( returnCode )
         {
             case -1:
-                fprintf( stderr, "error: downloading multi part file %d", returnCode );
+                fprintf( stderr, "error: downloading multi part file %d\n", returnCode );
                 status = FALSE;
                 break;
             case 0: //timeout
@@ -220,7 +223,7 @@ void merge_chunks( unsigned long long numberOfChunks, unsigned long long chunkSi
 
     if ( finalFile == NULL )
     {
-        fprintf( stderr, "error: could not open file %s", filename );
+        fprintf( stderr, "error: could not open file %s\n", filename );
         return;
     }
 
@@ -236,20 +239,27 @@ void merge_chunks( unsigned long long numberOfChunks, unsigned long long chunkSi
 
         FILE * chunkedFile = fopen( chunkFilename, "r" );
 
-        while( ( n = fread( buf, 1, chunkSize, chunkedFile ) ) > 0 )
+        if ( chunkedFile )
         {
-            if ( fwrite( buf, 1, n, finalFile ) != n )
+            while( ( n = fread( buf, 1, chunkSize, chunkedFile ) ) > 0 )
             {
-                fprintf( stderr, "error: merging chunk %s to file %s", chunkFilename, filename );
+                if ( fwrite( buf, 1, n, finalFile ) != n )
+                {
+                    fprintf( stderr, "error: merging chunk %s to file %s\n", chunkFilename, filename );
+                }
+            }
+
+            fclose( chunkedFile );
+
+            //error when removing chunked file
+            if ( remove( chunkFilename ) != 0 )
+            {
+                fprintf( stderr, "error: could not remove chunked file %s\n", chunkFilename );
             }
         }
-
-        fclose( chunkedFile );
-
-        //error when removing chunked file
-        if ( remove( chunkFilename ) != 0 )
+        else
         {
-            fprintf( stderr, "error: could not remove chunked file %s", chunkFilename );
+            fprintf( stderr, "error: could find chunked file %s\n", chunkFilename );
         }
     }
 
@@ -293,24 +303,36 @@ int ffdl_download_to_file_with_options( char * url, char * filename, unsigned lo
 #endif
 
     unsigned long long numberOfChunks = ceil( filesize / (double)( chunkSize ) );
+    unsigned long long currentStartOfPartition = 0;
+    unsigned long long currentPartitionSize = 0;
 
-    CURL ** curlHandles = (CURL **) malloc( numberOfChunks * sizeof( CURL * ) );
-    FILE ** fileDescriptors = (FILE **) malloc( numberOfChunks * sizeof( FILE * ) );
-    CURLM * curlMulti = curl_multi_init();
+    CURL ** curlHandles = (CURL **) malloc( c_partitionSize * sizeof( CURL * ) );
+    FILE ** fileDescriptors = (FILE **) malloc( c_partitionSize * sizeof( FILE * ) );
 
-    curl_multi_setopt( curlMulti, CURLMOPT_MAX_TOTAL_CONNECTIONS, maxConnections );
+    //Unfortunately most systems of a file descriptor limit of 1024 by default
+    //Each loop has at most 1000 file descriptors open at one time
+    //To make things worse, curl versions earlier than 7.23.0 have a bug where once the curl lib overflows it's own internal count of FD_SET,
+    //so even if you raise the system file descriptor limit, curl will segfault. The current version of ubuntu ships with libcurl 7.22.0 which has this bug.
+    for ( currentStartOfPartition = 0; currentStartOfPartition < numberOfChunks; currentStartOfPartition += c_partitionSize )
+    {
+        currentPartitionSize = min( c_partitionSize, numberOfChunks - currentStartOfPartition );
+        CURLM * curlMulti = curl_multi_init();
 
-    setup_curl_handlers( curlMulti, url, filename, numberOfChunks, chunkSize, timeout, rateLimit, curlHandles, fileDescriptors );
+        curl_multi_setopt( curlMulti, CURLMOPT_MAX_TOTAL_CONNECTIONS, maxConnections );
 
-    perform_multi_curl_download( curlMulti, numberOfChunks, timeout, curlHandles );
+        setup_curl_handlers( curlMulti, url, filename, currentStartOfPartition, currentPartitionSize, chunkSize, timeout, rateLimit, curlHandles, fileDescriptors );
 
-    clean_up_curl_multi_connections( curlMulti, numberOfChunks, curlHandles, fileDescriptors );
+        perform_multi_curl_download( curlMulti, currentPartitionSize, timeout, curlHandles );
+
+        clean_up_curl_multi_connections( curlMulti, currentPartitionSize, curlHandles, fileDescriptors );
+    }
+
+    free( curlHandles );
+    free( fileDescriptors );
 
     merge_chunks( numberOfChunks, chunkSize, filename );
 
     curl_global_cleanup();
-    free( curlHandles );
-    free( fileDescriptors );
     return result;
 }
 
